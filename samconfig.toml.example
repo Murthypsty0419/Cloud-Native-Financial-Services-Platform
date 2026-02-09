@@ -1,0 +1,34 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "cloud-native-financial-services-platform"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-EXAMPLE"
+s3_prefix = "cloud-native-financial-services-platform"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Stage=\"Dev\""
+image_repositories = []
+
+[default.build]
+[default.build.parameters]
+cached = true
+parallel = true
+
+[prod]
+[prod.deploy]
+[prod.deploy.parameters]
+stack_name = "cloud-native-financial-services-platform-prod"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-EXAMPLE"
+s3_prefix = "cloud-native-financial-services-platform-prod"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Stage=\"Prod\""
+image_repositories = []
+
+[prod.build]
+[prod.build.parameters]
+cached = true
+parallel = true

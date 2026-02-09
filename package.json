@@ -1,0 +1,27 @@
+{
+  "name": "cloud-native-financial-services-platform",
+  "version": "1.0.0",
+  "description": "Backend for a cloud-native financial services platform using AWS SAM",
+  "scripts": {
+    "test": "jest",
+    "build": "sam build",
+    "deploy": "sam deploy --guided",
+    "start-api": "sam local start-api"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.1001.0",
+    "uuid": "^8.3.2",
+    "joi": "^17.4.2",
+    "winston": "^3.0.0"
+  },
+  "devDependencies": {
+    "jest": "^27.0.6",
+    "eslint": "^7.32.0",
+    "eslint-config-airbnb-base": "^14.2.1",
+    "eslint-plugin-import": "^2.24.2",
+    "aws-sdk-mock": "^5.8.0"
+  },
+  "jest": {
+    "testEnvironment": "node"
+  }
+}
