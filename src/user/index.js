@@ -5,8 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const Joi = require('joi');
 const winston = require('winston');
 
-// Initialize AWS SDK and Winston logger
-const dynamodb = new AWS.DynamoDB.DocumentClient();
+// Initialize Winston logger
 const logger = winston.createLogger({
   level: 'info',
   format: winston.format.json(),
@@ -19,6 +18,17 @@ const logger = winston.createLogger({
 // Environment variables
 const TABLE_NAME = process.env.USER_TABLE;
 const STAGE = process.env.STAGE;
+
+let dynamodb;
+const getDynamoDb = () => {
+  if (process.env.STAGE === 'test') {
+    return new AWS.DynamoDB.DocumentClient();
+  }
+  if (!dynamodb) {
+    dynamodb = new AWS.DynamoDB.DocumentClient();
+  }
+  return dynamodb;
+};
 
 // Validation schema for user data
 const userSchema = Joi.object({
@@ -66,6 +76,7 @@ const getUserId = (event) => {
  * @returns {Promise<Object>} The Lambda response object.
  */
 const getUser = async (userId) => {
+  const dynamodb = getDynamoDb();
   const params = {
     TableName: TABLE_NAME,
     Key: { UserID: userId }
@@ -87,6 +98,7 @@ const getUser = async (userId) => {
  * @returns {Promise<Object>} The Lambda response object.
  */
 const createUser = async (userId, user) => {
+  const dynamodb = getDynamoDb();
   const { error } = userSchema.validate(user);
   if (error) {
     logger.warn('Invalid input', { userId, error: error.details[0].message });
@@ -123,6 +135,7 @@ const createUser = async (userId, user) => {
  * @returns {Promise<Object>} The Lambda response object.
  */
 const updateUser = async (userId, user) => {
+  const dynamodb = getDynamoDb();
   const { error } = userSchema.validate(user);
   if (error) {
     logger.warn('Invalid input', { userId, error: error.details[0].message });
@@ -154,6 +167,7 @@ const updateUser = async (userId, user) => {
  * @returns {Promise<Object>} The Lambda response object.
  */
 const deleteUser = async (userId) => {
+  const dynamodb = getDynamoDb();
   const params = {
     TableName: TABLE_NAME,
     Key: { UserID: userId }
@@ -170,9 +184,10 @@ const deleteUser = async (userId) => {
  * @param {Object} context - The Lambda context object.
  * @returns {Promise<Object>} The Lambda response object.
  */
-exports.handler = async (event, context) => {
-  logger.info('Received event', { 
-    requestId: context.awsRequestId,
+exports.handler = async (event, context = {}) => {
+  const requestId = context.awsRequestId || 'unknown';
+  logger.info('Received event', {
+    requestId,
     event: JSON.stringify(event)
   });
 
@@ -207,6 +222,7 @@ exports.handler = async (event, context) => {
 // If running in a test environment, export internal functions for unit testing
 if (STAGE === 'test') {
   module.exports = {
+    handler: exports.handler,
     createResponse,
     getUserId,
     getUser,

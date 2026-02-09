@@ -29,8 +29,7 @@ const { v4: uuidv4 } = require('uuid');
 const Joi = require('joi');
 const winston = require('winston');
 
-// Initialize AWS SDK and Winston logger
-const dynamodb = new AWS.DynamoDB.DocumentClient();
+// Initialize Winston logger
 const logger = winston.createLogger({
   level: 'info',
   format: winston.format.json(),
@@ -43,6 +42,17 @@ const logger = winston.createLogger({
 // Environment variables
 const TABLE_NAME = process.env.TRANSACTION_TABLE;
 const STAGE = process.env.STAGE;
+
+let dynamodb;
+const getDynamoDb = () => {
+  if (process.env.STAGE === 'test') {
+    return new AWS.DynamoDB.DocumentClient();
+  }
+  if (!dynamodb) {
+    dynamodb = new AWS.DynamoDB.DocumentClient();
+  }
+  return dynamodb;
+};
 
 // Validation schema
 const transactionSchema = Joi.object({
@@ -93,6 +103,7 @@ const getUserId = (event) => {
  * @returns {Promise<Object>} The Lambda response object.
  */
 const getAllTransactions = async (userId) => {
+  const dynamodb = getDynamoDb();
   const params = {
     TableName: TABLE_NAME,
     FilterExpression: 'UserID = :userId',
@@ -111,6 +122,7 @@ const getAllTransactions = async (userId) => {
  * @returns {Promise<Object>} The Lambda response object.
  */
 const getTransaction = async (userId, transactionId) => {
+  const dynamodb = getDynamoDb();
   const params = {
     TableName: TABLE_NAME,
     Key: { TransactionID: transactionId }
@@ -132,6 +144,7 @@ const getTransaction = async (userId, transactionId) => {
  * @returns {Promise<Object>} The Lambda response object.
  */
 const createTransaction = async (userId, transaction) => {
+  const dynamodb = getDynamoDb();
   const { error } = transactionSchema.validate(transaction);
   if (error) {
     logger.warn('Invalid input', { userId, error: error.details[0].message });
@@ -161,6 +174,7 @@ const createTransaction = async (userId, transaction) => {
  * @returns {Promise<Object>} The Lambda response object.
  */
 const updateTransaction = async (userId, transactionId, transaction) => {
+  const dynamodb = getDynamoDb();
   const { error } = transactionSchema.validate(transaction);
   if (error) {
     logger.warn('Invalid input', { userId, transactionId, error: error.details[0].message });
@@ -208,6 +222,7 @@ const updateTransaction = async (userId, transactionId, transaction) => {
  * @returns {Promise<Object>} The Lambda response object.
  */
 const deleteTransaction = async (userId, transactionId) => {
+  const dynamodb = getDynamoDb();
   const params = {
     TableName: TABLE_NAME,
     Key: { TransactionID: transactionId },
@@ -237,9 +252,10 @@ const deleteTransaction = async (userId, transactionId) => {
  * @param {Object} context - The Lambda context object.
  * @returns {Promise<Object>} The Lambda response object.
  */
-exports.handler = async (event, context) => {
-  logger.info('Received event', { 
-    requestId: context.awsRequestId,
+exports.handler = async (event, context = {}) => {
+  const requestId = context.awsRequestId || 'unknown';
+  logger.info('Received event', {
+    requestId,
     event: JSON.stringify(event)
   });
 
@@ -274,6 +290,7 @@ exports.handler = async (event, context) => {
 // If running in a test environment, export internal functions for unit testing
 if (STAGE === 'test') {
   module.exports = {
+    handler: exports.handler,
     createResponse,
     getUserId,
     getAllTransactions,

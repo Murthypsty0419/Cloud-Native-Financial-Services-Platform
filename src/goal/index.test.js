@@ -1,12 +1,15 @@
 const AWSMock = require('aws-sdk-mock');
 const AWS = require('aws-sdk');
-const { handler } = require('./index'); 
+
+process.env.GOAL_TABLE = 'Goals';
+process.env.STAGE = 'test';
+
+const { handler } = require('./index');
 
 AWSMock.setSDKInstance(AWS);
 
 beforeEach(() => {
   AWSMock.restore();  // Reset AWS mocks
-  process.env.GOAL_TABLE = 'Goals';
 });
 
 afterAll(() => {

@@ -28,7 +28,6 @@ This implementation provides a solid foundation for managing financial goals in 
 
 */
 
-
 'use strict';
 
 const AWS = require('aws-sdk');
@@ -36,8 +35,7 @@ const { v4: uuidv4 } = require('uuid');
 const Joi = require('joi');
 const winston = require('winston');
 
-// Initialize AWS SDK and Winston logger
-const dynamodb = new AWS.DynamoDB.DocumentClient();
+// Initialize Winston logger
 const logger = winston.createLogger({
   level: 'info',
   format: winston.format.json(),
@@ -50,6 +48,17 @@ const logger = winston.createLogger({
 // Environment variables
 const TABLE_NAME = process.env.GOAL_TABLE;
 const STAGE = process.env.STAGE;
+
+let dynamodb;
+const getDynamoDb = () => {
+  if (process.env.STAGE === 'test') {
+    return new AWS.DynamoDB.DocumentClient();
+  }
+  if (!dynamodb) {
+    dynamodb = new AWS.DynamoDB.DocumentClient();
+  }
+  return dynamodb;
+};
 
 // Validation schema
 const goalSchema = Joi.object({
@@ -83,9 +92,9 @@ const createResponse = (statusCode, body) => ({
  * @throws {Error} If the user ID is not found in the event.
  */
 const getUserId = (event) => {
-  if (event.requestContext && 
-      event.requestContext.authorizer && 
-      event.requestContext.authorizer.claims && 
+  if (event.requestContext &&
+      event.requestContext.authorizer &&
+      event.requestContext.authorizer.claims &&
       event.requestContext.authorizer.claims.sub) {
     return event.requestContext.authorizer.claims.sub;
   }
@@ -99,6 +108,7 @@ const getUserId = (event) => {
  * @returns {Promise<Object>} The Lambda response object.
  */
 const getAllGoals = async (userId) => {
+  const dynamodb = getDynamoDb();
   const params = {
     TableName: TABLE_NAME,
     FilterExpression: 'UserID = :userId',
@@ -119,6 +129,7 @@ const getAllGoals = async (userId) => {
  * @returns {Promise<Object>} The Lambda response object.
  */
 const getGoal = async (userId, goalId) => {
+  const dynamodb = getDynamoDb();
   const params = {
     TableName: TABLE_NAME,
     Key: { GoalID: goalId }
@@ -145,6 +156,8 @@ const createGoal = async (userId, goal) => {
     logger.warn('Invalid input', { userId, error: error.details[0].message });
     return createResponse(400, { message: error.details[0].message });
   }
+
+  const dynamodb = getDynamoDb();
   const newGoal = {
     ...goal,
     GoalID: uuidv4(),
@@ -174,7 +187,8 @@ const updateGoal = async (userId, goalId, goal) => {
     logger.warn('Invalid input', { userId, goalId, error: error.details[0].message });
     return createResponse(400, { message: error.details[0].message });
   }
-  
+
+  const dynamodb = getDynamoDb();
   // First, check if the goal belongs to the user
   const getParams = {
     TableName: TABLE_NAME,
@@ -185,7 +199,7 @@ const updateGoal = async (userId, goalId, goal) => {
     logger.warn('Goal not found or unauthorized', { userId, goalId });
     return createResponse(404, { message: 'Goal not found' });
   }
-  
+
   const params = {
     TableName: TABLE_NAME,
     Key: { GoalID: goalId },
@@ -212,6 +226,7 @@ const updateGoal = async (userId, goalId, goal) => {
  * @returns {Promise<Object>} The Lambda response object.
  */
 const deleteGoal = async (userId, goalId) => {
+  const dynamodb = getDynamoDb();
   // First, check if the goal belongs to the user
   const getParams = {
     TableName: TABLE_NAME,
@@ -222,7 +237,7 @@ const deleteGoal = async (userId, goalId) => {
     logger.warn('Goal not found or unauthorized', { userId, goalId });
     return createResponse(404, { message: 'Goal not found' });
   }
-  
+
   const params = {
     TableName: TABLE_NAME,
     Key: { GoalID: goalId }
@@ -239,9 +254,10 @@ const deleteGoal = async (userId, goalId) => {
  * @param {Object} context - The Lambda context object.
  * @returns {Promise<Object>} The Lambda response object.
  */
-exports.handler = async (event, context) => {
-  logger.info('Received event', { 
-    requestId: context.awsRequestId,
+exports.handler = async (event, context = {}) => {
+  const requestId = context.awsRequestId || 'unknown';
+  logger.info('Received event', {
+    requestId,
     event: JSON.stringify(event)
   });
 
@@ -249,7 +265,7 @@ exports.handler = async (event, context) => {
 
   try {
     const userId = getUserId(event);
-    
+
     switch (httpMethod) {
       case 'GET':
         return path === '/goal' ? await getAllGoals(userId) : await getGoal(userId, pathParameters.id);
@@ -276,6 +292,7 @@ exports.handler = async (event, context) => {
 // If running in a test environment, export internal functions for unit testing
 if (STAGE === 'test') {
   module.exports = {
+    handler: exports.handler,
     createResponse,
     getUserId,
     getAllGoals,

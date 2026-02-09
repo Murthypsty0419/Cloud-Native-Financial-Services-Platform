@@ -1,15 +1,18 @@
 const AWSMock = require('aws-sdk-mock');
 const AWS = require('aws-sdk');
-const { handler } = require('./index');  
+
+process.env.TRANSACTION_TABLE = 'Transactions';
+process.env.BUDGET_TABLE = 'Budgets';
+process.env.GOAL_TABLE = 'Goals';
+process.env.STAGE = 'test';
+
+const { handler } = require('./index');
 
 // Setting up the AWS SDK DynamoDB DocumentClient mock
 AWSMock.setSDKInstance(AWS);
 
 beforeEach(() => {
   AWSMock.restore('DynamoDB.DocumentClient');
-  process.env.TRANSACTION_TABLE = 'Transactions';
-  process.env.BUDGET_TABLE = 'Budgets';
-  process.env.GOAL_TABLE = 'Goals';
 });
 
 afterAll(() => {
@@ -21,7 +24,10 @@ describe('Analytics Data Retrieval', () => {
     // Mock DynamoDB responses for transactions, budgets, and goals
     AWSMock.mock('DynamoDB.DocumentClient', 'scan', function (params, callback){
       if (params.TableName === process.env.TRANSACTION_TABLE) {
-        callback(null, { Items: [{ Amount: 500, Date: new Date().toISOString(), Category: 'Food' }] });
+        callback(null, { Items: [
+          { Amount: 1000, Date: new Date().toISOString(), Category: 'Salary' },
+          { Amount: -500, Date: new Date().toISOString(), Category: 'Food' }
+        ] });
       } else if (params.TableName === process.env.BUDGET_TABLE) {
         callback(null, { Items: [{ Category: 'Food', Amount: 600 }] });
       } else if (params.TableName === process.env.GOAL_TABLE) {

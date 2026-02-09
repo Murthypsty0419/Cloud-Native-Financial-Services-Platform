@@ -1,13 +1,16 @@
 const AWSMock = require('aws-sdk-mock');
 const AWS = require('aws-sdk');
-const { handler } = require('./index'); 
 
 AWSMock.setSDKInstance(AWS);
 
+process.env.TRANSACTION_TABLE = 'Transactions';
+process.env.EXPORT_BUCKET = 'ExportBucket';
+process.env.STAGE = 'test';
+
+const { handler, getAllTransactions, convertToCSV, uploadToS3 } = require('./index');
+
 beforeEach(() => {
   AWSMock.restore(); // Reset mocks before each test
-  process.env.TRANSACTION_TABLE = 'Transactions';
-  process.env.EXPORT_BUCKET = 'ExportBucket';
 });
 
 afterAll(() => {

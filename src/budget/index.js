@@ -31,8 +31,7 @@ const { v4: uuidv4 } = require('uuid');
 const Joi = require('joi');
 const winston = require('winston');
 
-// Initialize AWS SDK and Winston logger
-const dynamodb = new AWS.DynamoDB.DocumentClient();
+// Initialize Winston logger
 const logger = winston.createLogger({
   level: 'info',
   format: winston.format.json(),
@@ -45,6 +44,17 @@ const logger = winston.createLogger({
 // Environment variables
 const TABLE_NAME = process.env.BUDGET_TABLE;
 const STAGE = process.env.STAGE;
+
+let dynamodb;
+const getDynamoDb = () => {
+  if (process.env.STAGE === 'test') {
+    return new AWS.DynamoDB.DocumentClient();
+  }
+  if (!dynamodb) {
+    dynamodb = new AWS.DynamoDB.DocumentClient();
+  }
+  return dynamodb;
+};
 
 // Validation schema
 const budgetSchema = Joi.object({
@@ -77,9 +87,9 @@ const createResponse = (statusCode, body) => ({
  * @throws {Error} If the user ID is not found in the event.
  */
 const getUserId = (event) => {
-  if (event.requestContext && 
-      event.requestContext.authorizer && 
-      event.requestContext.authorizer.claims && 
+  if (event.requestContext &&
+      event.requestContext.authorizer &&
+      event.requestContext.authorizer.claims &&
       event.requestContext.authorizer.claims.sub) {
     return event.requestContext.authorizer.claims.sub;
   }
@@ -93,6 +103,7 @@ const getUserId = (event) => {
  * @returns {Promise<Object>} The Lambda response object.
  */
 const getAllBudgets = async (userId) => {
+  const dynamodb = getDynamoDb();
   const params = {
     TableName: TABLE_NAME,
     FilterExpression: 'UserID = :userId',
@@ -113,6 +124,7 @@ const getAllBudgets = async (userId) => {
  * @returns {Promise<Object>} The Lambda response object.
  */
 const getBudget = async (userId, budgetId) => {
+  const dynamodb = getDynamoDb();
   const params = {
     TableName: TABLE_NAME,
     Key: { BudgetID: budgetId }
@@ -139,6 +151,8 @@ const createBudget = async (userId, budget) => {
     logger.warn('Invalid input', { userId, error: error.details[0].message });
     return createResponse(400, { message: error.details[0].message });
   }
+
+  const dynamodb = getDynamoDb();
   const newBudget = {
     ...budget,
     BudgetID: uuidv4(),
@@ -168,7 +182,8 @@ const updateBudget = async (userId, budgetId, budget) => {
     logger.warn('Invalid input', { userId, budgetId, error: error.details[0].message });
     return createResponse(400, { message: error.details[0].message });
   }
-  
+
+  const dynamodb = getDynamoDb();
   // First, check if the budget belongs to the user
   const getParams = {
     TableName: TABLE_NAME,
@@ -179,7 +194,7 @@ const updateBudget = async (userId, budgetId, budget) => {
     logger.warn('Budget not found or unauthorized', { userId, budgetId });
     return createResponse(404, { message: 'Budget not found' });
   }
-  
+
   const params = {
     TableName: TABLE_NAME,
     Key: { BudgetID: budgetId },
@@ -205,6 +220,7 @@ const updateBudget = async (userId, budgetId, budget) => {
  * @returns {Promise<Object>} The Lambda response object.
  */
 const deleteBudget = async (userId, budgetId) => {
+  const dynamodb = getDynamoDb();
   // First, check if the budget belongs to the user
   const getParams = {
     TableName: TABLE_NAME,
@@ -215,7 +231,7 @@ const deleteBudget = async (userId, budgetId) => {
     logger.warn('Budget not found or unauthorized', { userId, budgetId });
     return createResponse(404, { message: 'Budget not found' });
   }
-  
+
   const params = {
     TableName: TABLE_NAME,
     Key: { BudgetID: budgetId }
@@ -232,9 +248,10 @@ const deleteBudget = async (userId, budgetId) => {
  * @param {Object} context - The Lambda context object.
  * @returns {Promise<Object>} The Lambda response object.
  */
-exports.handler = async (event, context) => {
-  logger.info('Received event', { 
-    requestId: context.awsRequestId,
+exports.handler = async (event, context = {}) => {
+  const requestId = context.awsRequestId || 'mockRequestId';
+  logger.info('Received event', {
+    requestId,
     event: JSON.stringify(event)
   });
 
@@ -242,10 +259,12 @@ exports.handler = async (event, context) => {
 
   try {
     const userId = getUserId(event);
-    
+
     switch (httpMethod) {
       case 'GET':
-        return path === '/budget' ? await getAllBudgets(userId) : await getBudget(userId, pathParameters.id);
+        return path === '/budget'
+          ? await getAllBudgets(userId)
+          : await getBudget(userId, pathParameters.id);
       case 'POST':
         return await createBudget(userId, JSON.parse(body));
       case 'PUT':
@@ -269,6 +288,7 @@ exports.handler = async (event, context) => {
 // If running in a test environment, export internal functions for unit testing
 if (STAGE === 'test') {
   module.exports = {
+    handler: exports.handler,
     createResponse,
     getUserId,
     getAllBudgets,

@@ -1,9 +1,12 @@
 const AWSMock = require('aws-sdk-mock');
 const AWS = require('aws-sdk');
-const { handler } = require('./index');
 
-// Set AWS SDK instance to mock
 AWSMock.setSDKInstance(AWS);
+
+process.env.BUDGET_TABLE = 'Budgets';
+process.env.STAGE = 'test';
+
+const { handler } = require('./index');
 
 const context = { awsRequestId: 'mockRequestId' };
 

@@ -27,9 +27,7 @@ Remember to handle errors appropriately and consider implementing more robust er
 const AWS = require('aws-sdk');
 const winston = require('winston');
 
-// Initialize AWS SDK and Winston logger
-const s3 = new AWS.S3();
-const dynamodb = new AWS.DynamoDB.DocumentClient();
+// Initialize Winston logger
 const logger = winston.createLogger({
   level: 'info',
   format: winston.format.json(),
@@ -43,6 +41,28 @@ const logger = winston.createLogger({
 const TRANSACTION_TABLE = process.env.TRANSACTION_TABLE;
 const EXPORT_BUCKET = process.env.EXPORT_BUCKET;
 const STAGE = process.env.STAGE;
+
+let dynamodb;
+const getDynamoDb = () => {
+  if (process.env.STAGE === 'test') {
+    return new AWS.DynamoDB.DocumentClient();
+  }
+  if (!dynamodb) {
+    dynamodb = new AWS.DynamoDB.DocumentClient();
+  }
+  return dynamodb;
+};
+
+let s3;
+const getS3 = () => {
+  if (process.env.STAGE === 'test') {
+    return new AWS.S3();
+  }
+  if (!s3) {
+    s3 = new AWS.S3();
+  }
+  return s3;
+};
 
 /**
  * Creates a standardized response object.
@@ -84,6 +104,7 @@ const getUserId = (event) => {
  * @returns {Promise<Array>} An array of transaction objects.
  */
 const getAllTransactions = async (userId) => {
+  const dynamodb = getDynamoDb();
   const params = {
     TableName: TRANSACTION_TABLE,
     FilterExpression: 'UserID = :userId',
@@ -114,6 +135,7 @@ const convertToCSV = (transactions) => {
  * @returns {Promise<Object>} The S3 upload result.
  */
 const uploadToS3 = async (data, filename) => {
+  const s3 = getS3();
   const params = {
     Bucket: EXPORT_BUCKET,
     Key: filename,
@@ -132,9 +154,10 @@ const uploadToS3 = async (data, filename) => {
  * @param {Object} context - The Lambda context object.
  * @returns {Promise<Object>} The Lambda response object.
  */
-exports.handler = async (event, context) => {
-  logger.info('Received event', { 
-    requestId: context.awsRequestId,
+exports.handler = async (event, context = {}) => {
+  const requestId = context.awsRequestId || 'unknown';
+  logger.info('Received event', {
+    requestId,
     event: JSON.stringify(event)
   });
 
@@ -167,6 +190,7 @@ exports.handler = async (event, context) => {
 // If running in a test environment, export internal functions for unit testing
 if (STAGE === 'test') {
   module.exports = {
+    handler: exports.handler,
     createResponse,
     getUserId,
     getAllTransactions,

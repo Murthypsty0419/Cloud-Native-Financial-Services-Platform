@@ -1,14 +1,17 @@
 const AWSMock = require('aws-sdk-mock');
 const AWS = require('aws-sdk');
-const { handler } = require('./index');  
+
+process.env.ACCOUNT_TABLE = 'Accounts';
+process.env.AUDIT_TABLE = 'Audit';
+process.env.STAGE = 'test';
+
+const { handler } = require('./index');
 
 // Setting up the AWS SDK DynamoDB DocumentClient mock
 AWSMock.setSDKInstance(AWS);
 
 beforeEach(() => {
   AWSMock.restore('DynamoDB.DocumentClient');
-  process.env.ACCOUNT_TABLE = 'Accounts';
-  process.env.AUDIT_TABLE = 'Audit';
 });
 
 afterAll(() => {
@@ -70,7 +73,8 @@ describe('getAccount', () => {
           AccountName: 'Existing Account',
           Balance: 500,
           Type: 'Checking',
-          IsActive: true
+          IsActive: true,
+          UserID: 'user123'
         }
       });
     });

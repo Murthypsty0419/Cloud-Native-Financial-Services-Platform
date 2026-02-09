@@ -22,6 +22,9 @@
     "aws-sdk-mock": "^5.8.0"
   },
   "jest": {
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "setupFiles": [
+      "<rootDir>/test/jest.setup.js"
+    ]
   }
 }

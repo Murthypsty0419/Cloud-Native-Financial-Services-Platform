@@ -19,8 +19,7 @@ Also, keep in mind that this implementation uses a scan operation on the DynamoD
 const AWS = require('aws-sdk');
 const winston = require('winston');
 
-// Initialize AWS SDK and Winston logger
-const dynamodb = new AWS.DynamoDB.DocumentClient();
+// Initialize Winston logger
 const logger = winston.createLogger({
   level: 'info',
   format: winston.format.json(),
@@ -35,6 +34,17 @@ const TRANSACTION_TABLE = process.env.TRANSACTION_TABLE;
 const BUDGET_TABLE = process.env.BUDGET_TABLE;
 const GOAL_TABLE = process.env.GOAL_TABLE;
 const STAGE = process.env.STAGE;
+
+let dynamodb;
+const getDynamoDb = () => {
+  if (process.env.STAGE === 'test') {
+    return new AWS.DynamoDB.DocumentClient();
+  }
+  if (!dynamodb) {
+    dynamodb = new AWS.DynamoDB.DocumentClient();
+  }
+  return dynamodb;
+};
 
 /**
  * Creates a standardized response object.
@@ -77,6 +87,7 @@ const getUserId = (event) => {
  * @returns {Promise<Array>} The array of items retrieved.
  */
 async function getAllItems(tableName, userId) {
+  const dynamodb = getDynamoDb();
   const params = {
     TableName: tableName,
     FilterExpression: 'UserID = :userId',
@@ -185,9 +196,10 @@ function analyzeMonthlyTrend(transactions) {
  * @param {Object} context - The Lambda context object.
  * @returns {Promise<Object>} The Lambda response object.
  */
-exports.handler = async (event, context) => {
-  logger.info('Received event', { 
-    requestId: context.awsRequestId,
+exports.handler = async (event, context = {}) => {
+  const requestId = context.awsRequestId || 'unknown';
+  logger.info('Received event', {
+    requestId,
     event: JSON.stringify(event)
   });
 
@@ -233,6 +245,7 @@ exports.handler = async (event, context) => {
 // If running in a test environment, export internal functions for unit testing
 if (STAGE === 'test') {
   module.exports = {
+    handler: exports.handler,
     createResponse,
     getUserId,
     getAllItems,

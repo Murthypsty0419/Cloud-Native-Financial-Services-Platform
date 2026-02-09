@@ -34,8 +34,7 @@ const { v4: uuidv4 } = require('uuid');
 const Joi = require('joi');
 const winston = require('winston');
 
-// Initialize AWS SDK and Winston logger
-const dynamodb = new AWS.DynamoDB.DocumentClient();
+// Initialize Winston logger
 const logger = winston.createLogger({
   level: 'info',
   format: winston.format.json(),
@@ -49,6 +48,17 @@ const logger = winston.createLogger({
 const TABLE_NAME = process.env.ACCOUNT_TABLE;
 const AUDIT_TABLE = process.env.AUDIT_TABLE;
 const STAGE = process.env.STAGE;
+
+let dynamodb;
+const getDynamoDb = () => {
+  if (process.env.STAGE === 'test') {
+    return new AWS.DynamoDB.DocumentClient();
+  }
+  if (!dynamodb) {
+    dynamodb = new AWS.DynamoDB.DocumentClient();
+  }
+  return dynamodb;
+};
 
 // Validation schema
 const accountSchema = Joi.object({
@@ -107,6 +117,7 @@ const getUserId = (event) => {
  * @returns {Promise<void>}
  */
 const logAuditEvent = async (userId, action, details) => {
+  const dynamodb = getDynamoDb();
   const auditEvent = {
     AuditID: uuidv4(),
     UserID: userId,
@@ -130,6 +141,7 @@ const logAuditEvent = async (userId, action, details) => {
  * @returns {Promise<Object>} The Lambda response object.
  */
 const getAllAccounts = async (userId, lastEvaluatedKey, limit = 20) => {
+  const dynamodb = getDynamoDb();
   const params = {
     TableName: TABLE_NAME,
     FilterExpression: 'UserID = :userId AND IsActive = :isActive',
@@ -165,6 +177,7 @@ const getAllAccounts = async (userId, lastEvaluatedKey, limit = 20) => {
  * @returns {Promise<Object>} The Lambda response object.
  */
 const getAccount = async (userId, accountId) => {
+  const dynamodb = getDynamoDb();
   const params = {
     TableName: TABLE_NAME,
     Key: { AccountID: accountId }
@@ -186,6 +199,7 @@ const getAccount = async (userId, accountId) => {
  * @returns {Promise<Object>} The Lambda response object.
  */
 const createAccount = async (userId, account) => {
+  const dynamodb = getDynamoDb();
   const { error } = accountSchema.validate(account);
   if (error) {
     logger.warn('Invalid input', { userId, error: error.details[0].message });
@@ -230,6 +244,7 @@ const createAccount = async (userId, account) => {
  * @returns {Promise<Object>} The Lambda response object.
  */
 const updateAccount = async (userId, accountId, account) => {
+  const dynamodb = getDynamoDb();
   const { error } = accountSchema.validate(account);
   if (error) {
     logger.warn('Invalid input', { userId, accountId, error: error.details[0].message });
@@ -291,6 +306,7 @@ const updateAccount = async (userId, accountId, account) => {
  * @returns {Promise<Object>} The Lambda response object.
  */
 const deleteAccount = async (userId, accountId) => {
+  const dynamodb = getDynamoDb();
   const params = {
     TableName: TABLE_NAME,
     Key: { AccountID: accountId },
@@ -328,9 +344,10 @@ const deleteAccount = async (userId, accountId) => {
  * @param {Object} context - The Lambda context object.
  * @returns {Promise<Object>} The Lambda response object.
  */
-exports.handler = async (event, context) => {
-  logger.info('Received event', { 
-    requestId: context.awsRequestId,
+exports.handler = async (event, context = {}) => {
+  const requestId = context.awsRequestId || 'unknown';
+  logger.info('Received event', {
+    requestId,
     event: JSON.stringify(event)
   });
 
@@ -370,6 +387,7 @@ exports.handler = async (event, context) => {
 // If running in a test environment, export internal functions for unit testing
 if (STAGE === 'test') {
   module.exports = {
+    handler: exports.handler,
     createResponse,
     getUserId,
     logAuditEvent,

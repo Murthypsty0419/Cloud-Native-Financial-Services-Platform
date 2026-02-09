@@ -1,12 +1,15 @@
 const AWSMock = require('aws-sdk-mock');
 const AWS = require('aws-sdk');
-const { handler } = require('./index'); // Path to your transaction Lambda function file
 
 AWSMock.setSDKInstance(AWS);
 
+process.env.TRANSACTION_TABLE = 'Transactions';
+process.env.STAGE = 'test';
+
+const { handler } = require('./index'); // Path to your transaction Lambda function file
+
 beforeEach(() => {
   AWSMock.restore('DynamoDB.DocumentClient');
-  process.env.TRANSACTION_TABLE = 'Transactions';
 });
 
 afterAll(() => {
@@ -58,7 +61,7 @@ describe('createTransaction', () => {
 
     const result = await handler(event);
     expect(result.statusCode).toBe(400);
-    expect(JSON.parse(result.body).message).toContain('Invalid input');
+    expect(JSON.parse(result.body).message).toContain('ISO 8601');
   });
 });
 

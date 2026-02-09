@@ -1,12 +1,15 @@
 const AWSMock = require('aws-sdk-mock');
 const AWS = require('aws-sdk');
-const { handler } = require('./index');  
 
 AWSMock.setSDKInstance(AWS);
 
+process.env.USER_TABLE = 'Users';
+process.env.STAGE = 'test';
+
+const { handler } = require('./index');
+
 beforeEach(() => {
   AWSMock.restore('DynamoDB.DocumentClient');
-  process.env.USER_TABLE = 'Users';
 });
 
 afterAll(() => {
